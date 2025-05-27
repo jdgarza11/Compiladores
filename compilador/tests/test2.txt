@@ -1,0 +1,7 @@
+program example;
+var x : int;
+void myFunc() [ var y : int; { print("Inside function"); } ];
+main {
+  myFunc();
+}
+end

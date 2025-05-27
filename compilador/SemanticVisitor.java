@@ -1,0 +1,593 @@
+import org.antlr.v4.runtime.tree.ParseTree;
+
+import java.util.*;
+public class SemanticVisitor extends ExprBaseVisitor<Void> {
+
+    private Stack<String> pilaOperadores = new Stack<>();
+    private Stack<String> pilaOperandos = new Stack<>();
+    private Stack<String> pilaTipos = new Stack<>();
+    private Stack<Integer> pilaSaltos = new Stack<>();
+
+    // Fila para los cuádruplos
+    private List<Cuadruplo> cuadruplos = new ArrayList<>();
+
+    private Map<String, FunctionInfo> functionDirectory = new HashMap<>();
+    private String currentFunction = null;
+    private String currentVar = null;
+    private Map<Integer, Float> ctesMap = null;
+
+
+    //Mapa de memoria
+    // Mapa de memoria virtual: nombre -> dirección
+    private Map<String, Integer> memoriaVirtual = new HashMap<>();
+
+    // Contadores para direcciones (puedes separar por tipo si lo deseas)
+    private int dirVarGlobal = 1000;
+    private int dirVarLocal = 5000;
+    private int dirTemporal = 9000;
+    private int dirConstante = 13000;
+
+    private int dirAsignar = 0;
+    private int dirSuma = 1;
+    private int dirResta = 2;    
+    private int dirMultiplicacion = 3;
+    private int dirDivision = 4; 
+    private int dirMenor = 5; 
+    private int dirMayor = 6;
+    private int dirDistinto = 8; // Distinto
+    
+    // Asigna o devuelve la dirección de memoria de una variable
+    private int getDireccionVariable(String id) {
+        if (!memoriaVirtual.containsKey(id)) {
+            int dir;
+            if ("program".equals(currentFunction)) {
+                dir = dirVarGlobal++;
+            } else {
+                dir = dirVarLocal++;
+            }
+            memoriaVirtual.put(id, dir);
+        }
+        return memoriaVirtual.get(id);
+    }
+
+    // Asigna o devuelve la dirección de memoria de una constante
+    private int getDireccionConstante(String valor) {  
+        if (!memoriaVirtual.containsKey(valor)) {
+            memoriaVirtual.put(valor, dirConstante++);
+        }
+        return memoriaVirtual.get(valor);
+    }
+
+    // Genera una dirección de memoria para un temporal
+    private int generarDireccionTemporal() {
+        return dirTemporal++;
+    }
+    
+
+    public Map<String, FunctionInfo> getFunctionDirectory() {
+        return functionDirectory;
+    }
+
+    public void imprimirCuadruplos() {
+        System.out.println("Cuádruplos generados:");
+        for (Cuadruplo c : cuadruplos) {
+            System.out.println(c);
+        }
+    }
+
+    public String imprimirDirectorio() {
+    StringBuilder sb = new StringBuilder();
+    for (Map.Entry<String, FunctionInfo> entry : functionDirectory.entrySet()) {
+        sb.append("Función: ").append(entry.getKey()).append("\n");
+        FunctionInfo funcInfo = entry.getValue();
+        sb.append("  Variables:\n");
+        for (Map.Entry<String, VariableInfo> varEntry : funcInfo.variables.entrySet()) {
+            sb.append("    ").append(varEntry.getKey())
+              .append(" : ").append(varEntry.getValue().type)
+              .append("\n");
+        }
+        sb.append("  Parámetros:\n");
+        for (Map.Entry<String, VariableInfo> paramEntry : funcInfo.parameters.entrySet()) {
+            sb.append("    ").append(paramEntry.getKey())
+              .append(" : ").append(paramEntry.getValue().type)
+              .append("\n");
+        }
+    }
+    return sb.toString();
+}
+
+    @Override
+    public Void visitAll(ExprParser.AllContext ctx) {
+        System.out.println("¡visitAll!");
+        // Aquí puedes iniciar la verificación semántica global o recorrido del programa
+        return visitChildren(ctx);
+    }
+
+    @Override
+    public Void visitProgram(ExprParser.ProgramContext ctx) {
+        // System.out.println("Programa detectado: ");
+        currentFunction = "program";
+        functionDirectory.put(currentFunction, new FunctionInfo());
+        // Ejemplo de cómo puedes continuar el recorrido o análisis
+        return visitChildren(ctx);
+    }
+
+    @Override
+    public Void visitFuncs(ExprParser.FuncsContext ctx) {
+        System.out.println("Función detectada: " + ctx.getText());
+        String functionName = ctx.ID().getText();
+        FunctionInfo functionInfo = new FunctionInfo();
+        if(functionDirectory.containsKey(functionName)) {
+            System.err.println("Error: La función " + functionName + " ya está definida.");
+            return null; // O lanzar una excepción
+        }else {
+            System.out.println("Función " + functionName + " registrada.");
+            functionDirectory.put(functionName, functionInfo);
+            currentFunction = functionName;
+        }
+        
+        // Aquí puedes agregar la lógica para manejar los parámetros y el cuerpo de la función
+        return visitChildren(ctx);
+    }
+
+    @Override
+    public Void visitVariables(ExprParser.VariablesContext ctx) {
+        String type = ctx.type().getText();
+        List<String> ids = extractIds(ctx.listid());
+
+        for (String id : ids) {
+            VariableInfo varInfo = new VariableInfo();
+            varInfo.type = type;
+
+
+            if ("program".equals(currentFunction)) {
+                // Variables globales: solo revisa duplicados en global
+                Map<String, VariableInfo> globalVars = functionDirectory.get("program").variables;
+                if (globalVars.containsKey(id)) {
+                    System.err.println("Error: La variable global '" + id + "' ya está declarada.");
+                } else {
+                    globalVars.put(id, varInfo);
+                    System.out.println("Variable global '" + id + "' declarada con tipo: " + type);
+                }
+            } else {
+                // Variables locales: revisa duplicados en local
+                Map<String, VariableInfo> localVars = functionDirectory.get(currentFunction).variables;
+                Map<String, VariableInfo> globalVars = functionDirectory.get("program").variables;
+                if (localVars.containsKey(id)) {
+                    System.err.println("Error: La variable local '" + id + "' ya está declarada en la función '" + currentFunction + "'.");
+                 } //else if (globalVars.containsKey(id)) {
+                //     System.err.println("Error: La variable local '" + id + "' no puede repetir el nombre de una variable global.");
+                // } 
+                else {
+                    localVars.put(id, varInfo); 
+                    System.out.println("Variable local '" + id + "' declarada con tipo: " + type);
+                }
+            }
+        }
+        return visitChildren(ctx);
+    }
+
+    // Función auxiliar para extraer todos los IDs de la lista (recursiva)
+    private List<String> extractIds(ExprParser.ListidContext ctx) {
+        List<String> ids = new ArrayList<>();
+        if (ctx == null) return ids;
+        ids.add(ctx.ID().getText());
+        if (ctx.listid() != null) {
+            ids.addAll(extractIds(ctx.listid()));
+        }
+        return ids;
+    }
+
+    // Métodos para manipular las pilas y la fila de cuádruplos
+    public void pushOperador(String op) { pilaOperadores.push(op); }
+    public String popOperador() { return pilaOperadores.pop(); }
+    public void pushOperando(String opnd) { pilaOperandos.push(opnd); }
+    public String popOperando() { return pilaOperandos.pop(); }
+    public void pushTipo(String tipo) { pilaTipos.push(tipo); }
+    public String popTipo() { return pilaTipos.pop(); }
+    // public void addCuadruplo(String operador, String op1, String op2, String res) {
+    //     cuadruplos.add(new Cuadruplo(operador, op1, op2, res));
+    // }
+    
+    public void addCuadruplo(String operador, int op1, int op2, int res) {
+
+        // if(operador.equals("+")) {
+        //     operador = String.valueOf(dirSuma);
+        // } else if(operador.equals("-")) {
+        //     operador = String.valueOf(dirResta);
+        // } else if(operador.equals("*")) {
+        //     operador = String.valueOf(dirMultiplicacion);
+        // } else if(operador.equals("/")) {
+        //     operador = String.valueOf(dirDivision);
+        // } else if(operador.equals("<")) {
+        //     operador = String.valueOf(dirMenor);
+        // } else if(operador.equals(">")) {
+        //     operador = String.valueOf(dirMayor);
+        // }else if(operador.equals("=")) {
+        //     operador = String.valueOf(dirAsignar);
+        // }
+        cuadruplos.add(new Cuadruplo(operador, String.valueOf(op1), String.valueOf(op2), String.valueOf(res)));
+    }
+
+    public List<Cuadruplo> getCuadruplos() { return cuadruplos; }
+
+    @Override
+    public Void visitMas_menos(ExprParser.Mas_menosContext ctx) {
+        if (ctx.getChildCount() > 0) {
+            String op = ctx.getChild(0).getText();
+            if (op.equals("+") || op.equals("-")) {
+                pilaOperadores.push(op);
+                System.out.println("Push operador: " + op);
+            }
+            visit(ctx.exp());
+            // Aquí generas el cuádruplo para + o -
+            checkOperadorYGeneraCuadruplo(Set.of("+", "-"));
+        }
+        return null;
+    }
+
+
+    @Override
+    public Void visitPor_div(ExprParser.Por_divContext ctx) {
+        if (ctx.getChildCount() > 0) {
+            String op = ctx.getChild(0).getText();
+            if (op.equals("*") || op.equals("/")) {
+                pilaOperadores.push(op);
+                System.out.println("Push operador: " + op);
+            }
+            visit(ctx.termino());
+            checkOperadorYGeneraCuadruplo(Set.of("*", "/"));
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitExpresion(ExprParser.ExpresionContext ctx) {
+        visit(ctx.exp());       // visita el lado izquierdo
+        visit(ctx.op());        // visita el operador relacional y el lado derecho si existe
+
+        // Genera cuádruplo si hay operador relacional
+        checkOperadorYGeneraCuadruplo(Set.of(">", "<", "!="));
+        return null;
+    }
+
+    @Override
+    public Void visitAssign(ExprParser.AssignContext ctx) {
+        // 1. Visita el ID (variable)
+        String id = ctx.ID().getText();
+        VariableInfo varInfo = getVariableInfo(id);
+        if (varInfo == null) {
+            System.err.println("Error: Variable '" + id + "' no declarada.");
+            return null;
+        }
+        String tipoVar = varInfo.type;
+
+        // 2. Visita la expresión
+        visit(ctx.expresion());
+
+        // 3. Saca el resultado de la expresión
+        String resultadoExpresion = pilaOperandos.pop();
+        String tipoExpresion = pilaTipos.pop();
+
+        // 4. Verifica tipos usando el cubo semántico
+        String tipoResultado = null;
+        if (cuboSemantico.containsKey(tipoVar) &&
+            cuboSemantico.get(tipoVar).containsKey("=") &&
+            cuboSemantico.get(tipoVar).get("=").containsKey(tipoExpresion)) {
+            tipoResultado = cuboSemantico.get(tipoVar).get("=").get(tipoExpresion);
+        }
+
+        if (tipoResultado == null) {
+            System.err.println("Error semántico: No se puede asignar '" + tipoExpresion + "' a '" + tipoVar + "'.");
+            return null;
+        }
+
+        int dirVar = getDireccionVariable(id);
+        addCuadruplo("=", dirVar, Integer.parseInt(resultadoExpresion), dirVar);
+
+        return null;
+    }
+
+    @Override
+    public Void visitCondition(ExprParser.ConditionContext ctx) {
+        // 1. Visita la condición (expresion)
+        visit(ctx.expresion());
+
+        // 2. Saca el resultado de la condición
+        String resultadoCondicion = pilaOperandos.pop();
+
+        // 3. Genera GOTOF y guarda el salto pendiente
+        cuadruplos.add(new Cuadruplo("GOTOF", resultadoCondicion, "-1", "pendiente"));
+        pilaSaltos.push(cuadruplos.size() - 1);
+
+        // 4. Visita el bloque del if (body)
+        visit(ctx.body());
+
+        if (ctx.elses() != null && ctx.elses().body() != null) {
+            // 5. Si hay else, genera un GOTO y actualiza el salto del if
+            cuadruplos.add(new Cuadruplo("GOTO", "-1", "-1", "pendiente"));
+            int gotoFalso = pilaSaltos.pop();
+            pilaSaltos.push(cuadruplos.size() - 1);
+            // Rellena el salto falso del if al inicio del else
+            cuadruplos.get(gotoFalso).resultado = String.valueOf(cuadruplos.size());
+            // Visita el bloque else
+            visit(ctx.elses().body());
+            // Rellena el GOTO del else al final del else
+            int gotoFinal = pilaSaltos.pop();
+            cuadruplos.get(gotoFinal).resultado = String.valueOf(cuadruplos.size());
+        } else {
+            // 6. Si no hay else, rellena el salto falso del if al final del if
+            int gotoFalso = pilaSaltos.pop();
+            cuadruplos.get(gotoFalso).resultado = String.valueOf(cuadruplos.size());
+        }
+        return null;
+    }
+    @Override
+    public Void visitPrint(ExprParser.PrintContext ctx) {
+        // Si es una cadena
+        if (ctx.exps().STRING() != null) {
+            String cadena = ctx.exps().STRING().getText();
+            cuadruplos.add(new Cuadruplo("PRINT", "-1", "-1", cadena));
+        } else {
+            // Si es una o varias expresiones
+            procesarExps(ctx.exps());
+        }
+        return null;
+    }
+
+    // Método auxiliar para procesar exps recursivamente
+    private void procesarExps(ExprParser.ExpsContext ctx) {
+        if (ctx == null) return;
+        if (ctx.expresion() != null) {
+            visit(ctx.expresion());
+            String valor = pilaOperandos.pop();
+            cuadruplos.add(new Cuadruplo("PRINT", "-1", "-1", valor));
+            // Procesar posibles expresiones adicionales (ext)
+            if (ctx.ext() != null) {
+                procesarExps(ctx.ext().exps());
+            }
+        } else if (ctx.STRING() != null) {
+            String valor = ctx.STRING().getText();
+            cuadruplos.add(new Cuadruplo("PRINT", "-1", "-1", valor));
+        }
+    }
+    @Override
+    public Void visitCycle(ExprParser.CycleContext ctx) {
+        // 1. Marca el inicio del ciclo
+        int inicioCiclo = cuadruplos.size();
+
+        // 2. Visita la condición
+        visit(ctx.expresion());
+
+        // 3. Saca el resultado de la condición
+        String resultadoCondicion = pilaOperandos.pop();
+
+        // 4. Genera GOTOF y guarda el salto pendiente
+        cuadruplos.add(new Cuadruplo("GOTOF", resultadoCondicion, "-1", "pendiente"));
+        pilaSaltos.push(cuadruplos.size() - 1);
+
+        // 5. Visita el cuerpo del ciclo
+        visit(ctx.body());
+
+        // 6. GOTO al inicio del ciclo
+        cuadruplos.add(new Cuadruplo("GOTO", "-1", "-1", String.valueOf(inicioCiclo)));
+
+        // 7. Rellena el salto falso para salir del ciclo
+        int gotoFalso = pilaSaltos.pop();
+        cuadruplos.get(gotoFalso).resultado = String.valueOf(cuadruplos.size());
+
+        return null;
+    }
+
+
+    
+
+    public void checkOperadorYGeneraCuadruplo(Set<String> operadoresEsperados) {
+        if (!pilaOperadores.isEmpty()) {
+            String operador = pilaOperadores.peek();
+            if (operadoresEsperados.contains(operador)) {
+                pilaOperadores.pop();
+                String arg2 = pilaOperandos.pop();
+                String arg1 = pilaOperandos.pop();
+                String tipo2 = pilaTipos.pop();
+                String tipo1 = pilaTipos.pop();
+
+                // Consulta el cubo semántico
+                String tipoResultado = null;
+                if (cuboSemantico.containsKey(tipo1) &&
+                    cuboSemantico.get(tipo1).containsKey(operador) &&
+                    cuboSemantico.get(tipo1).get(operador).containsKey(tipo2)) {
+                    tipoResultado = cuboSemantico.get(tipo1).get(operador).get(tipo2);
+                }
+
+                if (tipoResultado == null) {
+                    System.err.println("Error semántico: No se puede aplicar el operador '" + operador +
+                            "' entre '" + tipo1 + "' y '" + tipo2 + "'");
+                    return;
+                }
+
+                int dirArg1 = arg1.matches("\\d+") ? Integer.parseInt(arg1) : getDireccionVariable(arg1);
+                int dirArg2 = arg2.matches("\\d+") ? Integer.parseInt(arg2) : getDireccionVariable(arg2);
+
+                int dirTemp = generarDireccionTemporal();
+                addCuadruplo(operador, dirArg1, dirArg2, dirTemp);
+                pilaOperandos.push(String.valueOf(dirTemp));
+                pilaTipos.push(tipoResultado);
+            }
+        }
+    }
+
+
+
+@Override
+public Void visitIdcte(ExprParser.IdcteContext ctx) {
+    String valor = ctx.getText();
+    String tipo;
+    int direccion;
+
+    if (ctx.ID() != null) {
+        String id = ctx.ID().getText();
+        VariableInfo var = getVariableInfo(id);
+        if (var == null) {
+            System.err.println("Error: Variable '" + id + "' no declarada.");
+            return null;
+        }
+        tipo = var.type;
+        direccion = getDireccionVariable(id);
+    } else if (ctx.INT() != null || ctx.FLOAT() != null) {
+        tipo = ctx.INT() != null ? "int" : "float";
+        direccion = getDireccionConstante(valor);
+    } else {
+        System.err.println("Error: Tipo desconocido para valor '" + valor + "'.");
+        return null;
+    }
+
+    pilaOperandos.push(String.valueOf(direccion));
+    pilaTipos.push(tipo);
+    System.out.println("Push operando: " + valor + " (dir: " + direccion + ") con tipo: " + tipo);
+    return null;
+}
+
+@Override
+public Void visitOpt(ExprParser.OptContext ctx) {
+    if (ctx.expresion() != null) {
+        visit(ctx.expresion());
+    } else if (ctx.idcte() != null) {
+        visit(ctx.idcte());
+    }
+    return null;
+}
+
+@Override
+public Void visitFactor(ExprParser.FactorContext ctx) {
+    return visit(ctx.opt());
+}
+
+@Override
+public Void visitTermino(ExprParser.TerminoContext ctx) {
+    visit(ctx.factor());
+    visit(ctx.por_div());
+    return null;
+}
+
+@Override
+public Void visitExp(ExprParser.ExpContext ctx) {
+    visit(ctx.termino());
+    visit(ctx.mas_menos());
+    return null;
+}
+
+@Override
+public Void visitOp(ExprParser.OpContext ctx) {
+    if (ctx.tokenop() != null) {
+        visit(ctx.tokenop());
+    }
+    return null;
+}
+
+@Override
+public Void visitTokenop(ExprParser.TokenopContext ctx) {
+    if (ctx.getChildCount() >= 2) {
+        String op = ctx.getChild(0).getText(); // '>', '<', '!='
+        pilaOperadores.push(op);
+        System.out.println("Push operador relacional: " + op);
+        visit(ctx.exp());
+    }
+    return null;
+}
+
+
+
+private VariableInfo getVariableInfo(String id) {
+    if (currentFunction != null && functionDirectory.get(currentFunction).variables.containsKey(id)) {
+        return functionDirectory.get(currentFunction).variables.get(id);
+    } else if (functionDirectory.get("program").variables.containsKey(id)) {
+        return functionDirectory.get("program").variables.get(id);
+    } else {
+        return null;
+    }
+}
+
+private int contadorTemporales = 0;
+
+private String generarTemporal() {
+    return "t" + (contadorTemporales++);
+}
+
+
+public void imprimirMemoriaVirtual() {
+    System.out.println("Mapa de memoria virtual:");
+    for (Map.Entry<String, Integer> entry : memoriaVirtual.entrySet()) {
+        System.out.println(entry.getKey() + " -> " + entry.getValue());
+    }
+}
+
+// Cubo semántico: tipo1 -> operador -> tipo2 -> tipoResultado
+private static final Map<String, Map<String, Map<String, String>>> cuboSemantico = new HashMap<>();
+
+static {
+    // Ejemplo para int y float con +, -, *, /
+    Map<String, Map<String, String>> intOps = new HashMap<>();
+    Map<String, String> intPlus = new HashMap<>();
+    intPlus.put("int", "int");
+    intPlus.put("float", "float");
+    intOps.put("+", intPlus);
+
+    Map<String, String> intMinus = new HashMap<>();
+    intMinus.put("int", "int");
+    intMinus.put("float", "float");
+    intOps.put("-", intMinus);
+
+    Map<String, String> intMultiplication = new HashMap<>();
+    intMultiplication.put("int", "int");
+    intMultiplication.put("float", "float");
+    intOps.put("*", intMultiplication);
+
+    Map<String, String> intDivision = new HashMap<>();
+    intDivision.put("int", "int");
+    intDivision.put("float", "float");
+    intOps.put("/", intDivision);
+
+    Map<String, String> intAsignar = new HashMap<>();
+    intAsignar.put("int", "int");
+    intAsignar.put("float", "float");
+    intOps.put("=", intAsignar);
+
+    // ...otros operadores para int...
+
+    cuboSemantico.put("int", intOps);
+
+    Map<String, Map<String, String>> floatOps = new HashMap<>();
+    Map<String, String> floatPlus = new HashMap<>();
+    floatPlus.put("int", "float");
+    floatPlus.put("float", "float");
+    floatOps.put("+", floatPlus);
+
+    Map<String, String> floatMinus = new HashMap<>();
+    floatMinus.put("int", "float");
+    floatMinus.put("float", "float");
+    floatOps.put("-", floatMinus);
+
+    Map<String, String> floatMultiplication = new HashMap<>();
+    floatMultiplication.put("int", "float");
+    floatMultiplication.put("float", "float");
+    floatOps.put("*", floatMultiplication);
+
+    Map<String, String> floatDivision = new HashMap<>();
+    floatDivision.put("int", "float");
+    floatDivision.put("float", "float");
+    floatOps.put("/", floatDivision);
+
+    Map<String, String> floatAsignar = new HashMap<>();
+    floatAsignar.put("int", "float");
+    floatAsignar.put("float", "float");
+    floatOps.put("=", floatAsignar);
+    // ...otros operadores para float...
+
+    cuboSemantico.put("float", floatOps);
+
+
+
+}
+
+}

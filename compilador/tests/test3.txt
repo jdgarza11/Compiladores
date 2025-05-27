@@ -1,0 +1,8 @@
+program loopy;
+var i : int;
+main {
+  while (i < 10) do {
+    print(i);
+  };
+}
+end

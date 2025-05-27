@@ -1,0 +1,7 @@
+program math;
+var x : int;
+void square(n : int) [ var result : int; { result = n * n; print(result); } ];
+main {
+  square(x);
+}
+end

@@ -1,0 +1,12 @@
+program conditional;
+var score : int;
+main {
+  if (score > 60) {
+    print("Pass");
+  } else {
+    print("Fail");
+  };
+  print("Adios")
+}
+end
+
