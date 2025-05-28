@@ -13,19 +13,25 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
 
     private Map<String, FunctionInfo> functionDirectory = new HashMap<>();
     private String currentFunction = null;
-    private String currentVar = null;
-    private Map<Integer, Float> ctesMap = null;
 
 
     //Mapa de memoria
     // Mapa de memoria virtual: nombre -> dirección
     private Map<String, Integer> memoriaVirtual = new HashMap<>();
+    private Map<String, Integer> memoriaConstantes = new HashMap<>();
 
     // Contadores para direcciones (puedes separar por tipo si lo deseas)
+    private int[] dirVirtuales = {
+        1000, // Globales
+        5000, // Locales
+        9000, // Temporales
+        13000 // Constantes
+    };
     private int dirVarGlobal = 1000;
     private int dirVarLocal = 5000;
     private int dirTemporal = 9000;
-    private int dirConstante = 13000;
+    private int dirConstInt = 13000;
+    private int dirConstFloat = 14000;
 
     private int dirAsignar = 0;
     private int dirSuma = 1;
@@ -34,11 +40,18 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
     private int dirDivision = 4; 
     private int dirMenor = 5; 
     private int dirMayor = 6;
-    private int dirDistinto = 8; // Distinto
+    private int dirDistinto = 8;
     
+    private int contadorTemporales = 0;
+
+    public SemanticVisitor() {
+        cuadruplos.add(new Cuadruplo("GOTO", "-1", "-1", "pendiente"));
+
+    }
+
     // Asigna o devuelve la dirección de memoria de una variable
     private int getDireccionVariable(String id) {
-        if (!memoriaVirtual.containsKey(id)) {
+        if (!memoriaVirtual.containsKey(id) && functionDirectory.get(currentFunction).variables.containsKey(id)) {
             int dir;
             if ("program".equals(currentFunction)) {
                 dir = dirVarGlobal++;
@@ -46,21 +59,43 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 dir = dirVarLocal++;
             }
             memoriaVirtual.put(id, dir);
+            functionDirectory.get(currentFunction).variables.get(id).direction = dir;
         }
         return memoriaVirtual.get(id);
     }
 
     // Asigna o devuelve la dirección de memoria de una constante
-    private int getDireccionConstante(String valor) {  
-        if (!memoriaVirtual.containsKey(valor)) {
-            memoriaVirtual.put(valor, dirConstante++);
+    private int getDireccionConstante(String valor, String tipo) {  
+        if (!memoriaVirtual.containsKey(valor) && !memoriaConstantes.containsKey(valor)) {
+            if(tipo.equals("int")) {
+                memoriaVirtual.put(valor, dirConstInt);
+                memoriaConstantes.put(valor, dirConstInt);
+                dirConstInt++;
+            } else if(tipo.equals("float")) {
+                memoriaVirtual.put(valor, dirConstFloat);
+                memoriaConstantes.put(valor, dirConstFloat);
+                dirConstFloat++;
+            } else {
+                System.err.println("Error: Tipo de constante: " + tipo);
+                return -1; // O lanzar una excepción
+            }
+
+
         }
         return memoriaVirtual.get(valor);
     }
 
     // Genera una dirección de memoria para un temporal
+
     private int generarDireccionTemporal() {
-        return dirTemporal++;
+        String nombreTemporal = "t" + (contadorTemporales++);
+        int direccion = dirTemporal++;
+        memoriaVirtual.put(nombreTemporal, direccion);
+        // Suma temporal al recurso de la función actual
+        if (currentFunction != null && functionDirectory.containsKey(currentFunction)) {
+            functionDirectory.get(currentFunction).recursos.numTemporales++;
+        }
+        return direccion;
     }
     
 
@@ -80,10 +115,12 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
     for (Map.Entry<String, FunctionInfo> entry : functionDirectory.entrySet()) {
         sb.append("Función: ").append(entry.getKey()).append("\n");
         FunctionInfo funcInfo = entry.getValue();
+        sb.append("  Tipo de retorno: ").append(funcInfo.returnType).append("\n");
+        sb.append("  Recursos: ").append(funcInfo.recursos).append("\n");
         sb.append("  Variables:\n");
         for (Map.Entry<String, VariableInfo> varEntry : funcInfo.variables.entrySet()) {
-            sb.append("    ").append(varEntry.getKey())
-              .append(" : ").append(varEntry.getValue().type)
+            sb.append("    ").append(varEntry.getValue().Imprimir())
+              //.append(" : ").append(varEntry.getValue().type)
               .append("\n");
         }
         sb.append("  Parámetros:\n");
@@ -105,12 +142,24 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
 
     @Override
     public Void visitProgram(ExprParser.ProgramContext ctx) {
-        // System.out.println("Programa detectado: ");
         currentFunction = "program";
         functionDirectory.put(currentFunction, new FunctionInfo());
-        // Ejemplo de cómo puedes continuar el recorrido o análisis
-        return visitChildren(ctx);
+
+        // Procesa variables y funciones primero
+        if (ctx.o_vars() != null) visit(ctx.o_vars());
+        if (ctx.o_funcs() != null) visit(ctx.o_funcs());
+
+        // Justo antes de entrar al main, actualiza el GOTO
+        int indiceMain = cuadruplos.size();
+        cuadruplos.get(0).resultado = String.valueOf(indiceMain);
+
+        // Ahora procesa el body de main
+        visit(ctx.body());
+
+        return null;
     }
+
+    
 
     @Override
     public Void visitFuncs(ExprParser.FuncsContext ctx) {
@@ -138,7 +187,7 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         for (String id : ids) {
             VariableInfo varInfo = new VariableInfo();
             varInfo.type = type;
-
+            varInfo.name = id;
 
             if ("program".equals(currentFunction)) {
                 // Variables globales: solo revisa duplicados en global
@@ -148,6 +197,8 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 } else {
                     globalVars.put(id, varInfo);
                     System.out.println("Variable global '" + id + "' declarada con tipo: " + type);
+                    functionDirectory.get(currentFunction).recursos.numVariables++;
+
                 }
             } else {
                 // Variables locales: revisa duplicados en local
@@ -161,10 +212,44 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 else {
                     localVars.put(id, varInfo); 
                     System.out.println("Variable local '" + id + "' declarada con tipo: " + type);
+                    functionDirectory.get(currentFunction).recursos.numVariables++;
+
                 }
             }
         }
         return visitChildren(ctx);
+    }
+
+   @Override
+    public Void visitInput(ExprParser.InputContext ctx) {
+        if (ctx.ID() != null && ctx.type() != null) {
+            String paramName = ctx.ID().getText();
+            String paramType = ctx.type().getText();
+
+            // Crea VariableInfo para el parámetro
+            VariableInfo paramInfo = new VariableInfo();
+            paramInfo.name = paramName;
+            paramInfo.type = paramType;
+
+            // Guarda el parámetro en el directorio de funciones
+            if (currentFunction != null) {
+                FunctionInfo funcInfo = functionDirectory.get(currentFunction);
+                if (funcInfo != null) {
+                    if (funcInfo.parameters.containsKey(paramName)) {
+                        System.err.println("Error: Parámetro '" + paramName + "' ya declarado en función '" + currentFunction + "'");
+                    } else {
+                        funcInfo.parameters.put(paramName, paramInfo);
+                        // También puedes agregarlo a variables locales si lo deseas:
+                        funcInfo.variables.put(paramName, paramInfo);
+                    }
+                }
+            }
+        }
+        // Visita recursivamente listinput si existe
+        if (ctx.listinput() != null) {
+            visit(ctx.listinput());
+        }
+        return null;
     }
 
     // Función auxiliar para extraer todos los IDs de la lista (recursiva)
@@ -213,30 +298,30 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
 
     @Override
     public Void visitMas_menos(ExprParser.Mas_menosContext ctx) {
+        // mas_menos: '+' termino mas_menos | '-' termino mas_menos | (vacío)
         if (ctx.getChildCount() > 0) {
             String op = ctx.getChild(0).getText();
             if (op.equals("+") || op.equals("-")) {
                 pilaOperadores.push(op);
-                System.out.println("Push operador: " + op);
+                visit(ctx.termino());
+                checkOperadorYGeneraCuadruplo(Set.of("+", "-"));
+                visit(ctx.mas_menos());
             }
-            visit(ctx.exp());
-            // Aquí generas el cuádruplo para + o -
-            checkOperadorYGeneraCuadruplo(Set.of("+", "-"));
         }
         return null;
     }
 
-
     @Override
     public Void visitPor_div(ExprParser.Por_divContext ctx) {
+        // por_div: '*' factor por_div | '/' factor por_div | (vacío)
         if (ctx.getChildCount() > 0) {
             String op = ctx.getChild(0).getText();
             if (op.equals("*") || op.equals("/")) {
                 pilaOperadores.push(op);
-                System.out.println("Push operador: " + op);
+                visit(ctx.factor());
+                checkOperadorYGeneraCuadruplo(Set.of("*", "/"));
+                visit(ctx.por_div());
             }
-            visit(ctx.termino());
-            checkOperadorYGeneraCuadruplo(Set.of("*", "/"));
         }
         return null;
     }
@@ -278,8 +363,7 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         }
 
         if (tipoResultado == null) {
-            System.err.println("Error semántico: No se puede asignar '" + tipoExpresion + "' a '" + tipoVar + "'.");
-            return null;
+            throw new RuntimeException("Error semántico: No se puede asignar '" + tipoExpresion + "' a '" + tipoVar + "'.");
         }
 
         int dirVar = getDireccionVariable(id);
@@ -379,9 +463,6 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         return null;
     }
 
-
-    
-
     public void checkOperadorYGeneraCuadruplo(Set<String> operadoresEsperados) {
         if (!pilaOperadores.isEmpty()) {
             String operador = pilaOperadores.peek();
@@ -401,9 +482,8 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 }
 
                 if (tipoResultado == null) {
-                    System.err.println("Error semántico: No se puede aplicar el operador '" + operador +
+                    throw new RuntimeException("Error semántico: No se puede aplicar el operador '" + operador +
                             "' entre '" + tipo1 + "' y '" + tipo2 + "'");
-                    return;
                 }
 
                 int dirArg1 = arg1.matches("\\d+") ? Integer.parseInt(arg1) : getDireccionVariable(arg1);
@@ -436,7 +516,7 @@ public Void visitIdcte(ExprParser.IdcteContext ctx) {
         direccion = getDireccionVariable(id);
     } else if (ctx.INT() != null || ctx.FLOAT() != null) {
         tipo = ctx.INT() != null ? "int" : "float";
-        direccion = getDireccionConstante(valor);
+        direccion = getDireccionConstante(valor, tipo);
     } else {
         System.err.println("Error: Tipo desconocido para valor '" + valor + "'.");
         return null;
@@ -508,7 +588,6 @@ private VariableInfo getVariableInfo(String id) {
     }
 }
 
-private int contadorTemporales = 0;
 
 private String generarTemporal() {
     return "t" + (contadorTemporales++);
@@ -520,13 +599,25 @@ public void imprimirMemoriaVirtual() {
     for (Map.Entry<String, Integer> entry : memoriaVirtual.entrySet()) {
         System.out.println(entry.getKey() + " -> " + entry.getValue());
     }
+
+    System.out.println("Mapa de memoria constante:");
+    for (Map.Entry<String, Integer> entry : memoriaConstantes.entrySet()) {
+        System.out.println(entry.getKey() + " -> " + entry.getValue());
+    }
+}
+
+public Ovejota getOvejota() {
+    Ovejota ovejota = new Ovejota();
+    ovejota.functionDirectory = this.functionDirectory;
+    ovejota.memoriaConstantes = this.memoriaConstantes;
+    ovejota.cuadruplos = this.cuadruplos;
+    return ovejota;
 }
 
 // Cubo semántico: tipo1 -> operador -> tipo2 -> tipoResultado
 private static final Map<String, Map<String, Map<String, String>>> cuboSemantico = new HashMap<>();
 
 static {
-    // Ejemplo para int y float con +, -, *, /
     Map<String, Map<String, String>> intOps = new HashMap<>();
     Map<String, String> intPlus = new HashMap<>();
     intPlus.put("int", "int");
@@ -550,10 +641,21 @@ static {
 
     Map<String, String> intAsignar = new HashMap<>();
     intAsignar.put("int", "int");
-    intAsignar.put("float", "float");
+    //intAsignar.put("float", "float");
     intOps.put("=", intAsignar);
 
-    // ...otros operadores para int...
+    Map<String, String> intDistinto = new HashMap<>();
+    intDistinto.put("int", "bool");
+    intDistinto.put("float", "bool");
+    intOps.put("!=", intDistinto);
+    Map<String, String> intMayor = new HashMap<>();
+    intMayor.put("int", "bool");
+    intMayor.put("float", "bool");
+    intOps.put(">", intMayor);
+    Map<String, String> intMenor = new HashMap<>();
+    intMenor.put("int", "bool");
+    intMenor.put("float", "bool");
+    intOps.put("<", intMenor);
 
     cuboSemantico.put("int", intOps);
 
@@ -582,12 +684,22 @@ static {
     floatAsignar.put("int", "float");
     floatAsignar.put("float", "float");
     floatOps.put("=", floatAsignar);
-    // ...otros operadores para float...
+    
+    Map<String, String> floatDistinto = new HashMap<>();
+    floatDistinto.put("int", "bool");
+    floatDistinto.put("float", "bool");
+    floatOps.put("!=", floatDistinto);
+    Map<String, String> floatMayor = new HashMap<>();
+    floatMayor.put("int", "bool");
+    floatMayor.put("float", "bool");
+    floatOps.put(">", floatMayor);
+    Map<String, String> floatMenor = new HashMap<>();
+    floatMenor.put("int", "bool");
+    floatMenor.put("float", "bool");
+    floatOps.put("<", floatMenor);
+
 
     cuboSemantico.put("float", floatOps);
-
-
-
 }
 
 }

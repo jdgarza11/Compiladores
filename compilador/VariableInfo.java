@@ -3,7 +3,6 @@ import java.util.Map;
 
 public class VariableInfo {
     public String name;
-    public String scope;
     public String type;
     public int direction;
 
