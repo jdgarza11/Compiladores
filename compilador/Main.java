@@ -9,7 +9,7 @@ import java.util.*;
 public class Main {
     public static void main(String[] args) throws Exception {
         // Leer el archivo de entrada
-        String input = new String(Files.readAllBytes(Paths.get("./tests/test6.txt")));
+        String input = new String(Files.readAllBytes(Paths.get("./tests/test5.txt")));
         CharStream charStream = CharStreams.fromString(input);
 
         // Crear el lexer y parser
@@ -34,5 +34,11 @@ public class Main {
         // Imprimir los cuádruplos generados
         visitor.imprimirCuadruplos();
         visitor.imprimirMemoriaVirtual();
+        System.out.println("---------------------------------------------------");
+        // Crear la máquina virtual con los cuádruplos generados
+        // System.out.println("Maquina Virtual: \n");
+        // Ovejota ovejota = visitor.getOvejota();
+        // MaquinaVirtual maquinaVirtual = new MaquinaVirtual(ovejota);
+        // maquinaVirtual.ejecutar();
     }
 }

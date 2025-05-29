@@ -6,4 +6,5 @@ public class FunctionInfo {
     public Recursos recursos = new Recursos();
     public Map<String, VariableInfo> parameters = new HashMap<>();
     public Map<String, VariableInfo> variables = new HashMap<>();
+    public int inicioCuadruplo = -1; // Indica el inicio de los cuadruplos para esta función
 }

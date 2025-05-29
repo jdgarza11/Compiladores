@@ -17,21 +17,19 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
 
     //Mapa de memoria
     // Mapa de memoria virtual: nombre -> dirección
-    private Map<String, Integer> memoriaVirtual = new HashMap<>();
+    // private Map<String, Integer> memoriaVirtual = new HashMap<>();
     private Map<String, Integer> memoriaConstantes = new HashMap<>();
 
     // Contadores para direcciones (puedes separar por tipo si lo deseas)
-    private int[] dirVirtuales = {
-        1000, // Globales
-        5000, // Locales
-        9000, // Temporales
-        13000 // Constantes
-    };
-    private int dirVarGlobal = 1000;
-    private int dirVarLocal = 5000;
-    private int dirTemporal = 9000;
-    private int dirConstInt = 13000;
-    private int dirConstFloat = 14000;
+    private int dirVarGlobalInt = 1000;
+    private int dirVarGlobalFloat = 3000;
+    private int dirVarLocalInt = 5000;
+    private int dirVarLocalFloat = 7000;
+    private int dirTemporalInt = 9000;
+    private int dirTemporalFloat = 11000;
+    private int dirTemporalBool = 13000;
+    private int dirConstInt = 15000;
+    private int dirConstFloat = 17000;
 
     private int dirAsignar = 0;
     private int dirSuma = 1;
@@ -48,55 +46,73 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         cuadruplos.add(new Cuadruplo("GOTO", "-1", "-1", "pendiente"));
 
     }
-
-    // Asigna o devuelve la dirección de memoria de una variable
-    private int getDireccionVariable(String id) {
-        if (!memoriaVirtual.containsKey(id) && functionDirectory.get(currentFunction).variables.containsKey(id)) {
-            int dir;
-            if ("program".equals(currentFunction)) {
-                dir = dirVarGlobal++;
-            } else {
-                dir = dirVarLocal++;
-            }
-            memoriaVirtual.put(id, dir);
-            functionDirectory.get(currentFunction).variables.get(id).direction = dir;
-        }
-        return memoriaVirtual.get(id);
+   
+private int getDireccionVariable(String id) {
+    VariableInfo varInfo = getVariableInfo(id);
+    if (varInfo == null) {
+        System.err.println("Error: Variable '" + id + "' no declarada.");
+        return -1;
     }
-
-    // Asigna o devuelve la dirección de memoria de una constante
-    private int getDireccionConstante(String valor, String tipo) {  
-        if (!memoriaVirtual.containsKey(valor) && !memoriaConstantes.containsKey(valor)) {
-            if(tipo.equals("int")) {
-                memoriaVirtual.put(valor, dirConstInt);
-                memoriaConstantes.put(valor, dirConstInt);
-                dirConstInt++;
-            } else if(tipo.equals("float")) {
-                memoriaVirtual.put(valor, dirConstFloat);
-                memoriaConstantes.put(valor, dirConstFloat);
-                dirConstFloat++;
+    if (varInfo.direction == null) {
+        int dir;
+        String tipo = varInfo.type;
+        boolean esGlobal = functionDirectory.get("program").variables.containsKey(id);
+        if (esGlobal) {
+            if ("int".equals(tipo)) {
+                dir = dirVarGlobalInt++;
+            } else if ("float".equals(tipo)) {
+                dir = dirVarGlobalFloat++;
             } else {
-                System.err.println("Error: Tipo de constante: " + tipo);
-                return -1; // O lanzar una excepción
+                throw new RuntimeException("Tipo no soportado para variable global: " + tipo);
             }
-
-
+        } else {
+            if ("int".equals(tipo)) {
+                dir = dirVarLocalInt++;
+            } else if ("float".equals(tipo)) {
+                dir = dirVarLocalFloat++;
+            } else {
+                throw new RuntimeException("Tipo no soportado para variable local: " + tipo);
+            }
         }
-        return memoriaVirtual.get(valor);
+        varInfo.direction = dir;
     }
+    return varInfo.direction;
+}
 
+private int getDireccionConstante(String valor, String tipo) {  
+    if (!memoriaConstantes.containsKey(valor)) {
+        int dir;
+        if ("int".equals(tipo)) {
+            dir = dirConstInt++;
+        } else if ("float".equals(tipo)) {
+            dir = dirConstFloat++;
+        } else {
+            System.err.println("Error: Tipo de constante: " + tipo);
+            return -1;
+        }
+        memoriaConstantes.put(valor, dir);
+    }
+    return memoriaConstantes.get(valor);
+}
     // Genera una dirección de memoria para un temporal
 
-    private int generarDireccionTemporal() {
-        String nombreTemporal = "t" + (contadorTemporales++);
-        int direccion = dirTemporal++;
-        memoriaVirtual.put(nombreTemporal, direccion);
-        // Suma temporal al recurso de la función actual
-        if (currentFunction != null && functionDirectory.containsKey(currentFunction)) {
-            functionDirectory.get(currentFunction).recursos.numTemporales++;
-        }
-        return direccion;
+private int generarDireccionTemporal(String tipo) {
+    int direccion;
+    if ("int".equals(tipo)) {
+        direccion = dirTemporalInt++;
+    } else if ("float".equals(tipo)) {
+        direccion = dirTemporalFloat++;
+    } else if ("bool".equals(tipo)) {
+        direccion = dirTemporalBool++;
+    } else {
+        throw new RuntimeException("Tipo de temporal no soportado: " + tipo);
     }
+    // Suma temporal al recurso de la función actual
+    if (currentFunction != null && functionDirectory.containsKey(currentFunction)) {
+        functionDirectory.get(currentFunction).recursos.numTemporales++;
+    }
+    return direccion;
+}
     
 
     public Map<String, FunctionInfo> getFunctionDirectory() {
@@ -125,8 +141,8 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         }
         sb.append("  Parámetros:\n");
         for (Map.Entry<String, VariableInfo> paramEntry : funcInfo.parameters.entrySet()) {
-            sb.append("    ").append(paramEntry.getKey())
-              .append(" : ").append(paramEntry.getValue().type)
+            sb.append("    ").append(paramEntry.getValue().Imprimir())
+              //.append(" : ").append(paramEntry.getValue().type)
               .append("\n");
         }
     }
@@ -152,7 +168,10 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         // Justo antes de entrar al main, actualiza el GOTO
         int indiceMain = cuadruplos.size();
         cuadruplos.get(0).resultado = String.valueOf(indiceMain);
-
+        //Reinicia el contador de temporales para el main
+        dirTemporalInt = 9000;
+        dirTemporalFloat = 11000;
+        dirTemporalBool = 13000;
         // Ahora procesa el body de main
         visit(ctx.body());
 
@@ -161,23 +180,42 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
 
     
 
-    @Override
-    public Void visitFuncs(ExprParser.FuncsContext ctx) {
-        System.out.println("Función detectada: " + ctx.getText());
-        String functionName = ctx.ID().getText();
-        FunctionInfo functionInfo = new FunctionInfo();
-        if(functionDirectory.containsKey(functionName)) {
-            System.err.println("Error: La función " + functionName + " ya está definida.");
-            return null; // O lanzar una excepción
-        }else {
-            System.out.println("Función " + functionName + " registrada.");
-            functionDirectory.put(functionName, functionInfo);
-            currentFunction = functionName;
-        }
-        
-        // Aquí puedes agregar la lógica para manejar los parámetros y el cuerpo de la función
-        return visitChildren(ctx);
+@Override
+public Void visitFuncs(ExprParser.FuncsContext ctx) {
+    System.out.println("Función detectada: " + ctx.getText());
+    String functionName = ctx.ID().getText();
+    FunctionInfo functionInfo = new FunctionInfo();
+    if(functionDirectory.containsKey(functionName)) {
+        System.err.println("Error: La función " + functionName + " ya está definida.");
+        throw new RuntimeException("Error: La función " + functionName + " ya está definida.");
+    } else {
+        System.out.println("Función " + functionName + " registrada.");
+        functionDirectory.put(functionName, functionInfo);
+        currentFunction = functionName;
     }
+    functionInfo.inicioCuadruplo = cuadruplos.size();
+
+    // Reinicia los contadores de temporales y locales para esta función
+    dirTemporalInt = 9000;
+    dirTemporalFloat = 11000;
+    dirTemporalBool = 13000;
+    dirVarLocalInt = 5000;
+    dirVarLocalFloat = 7000;
+
+    // Procesa parámetros y variables locales
+    if (ctx.input() != null) visit(ctx.input());
+    if (ctx.o_vars() != null) visit(ctx.o_vars());
+
+    // Procesa el cuerpo de la función
+    visit(ctx.body());
+
+    // Al final del body, agrega ENDFunc
+    cuadruplos.add(new Cuadruplo("ENDFunc", functionName, "-1", "-1"));
+
+    // Restaura currentFunction (opcional)
+    currentFunction = "program";
+    return null;
+}
 
     @Override
     public Void visitVariables(ExprParser.VariablesContext ctx) {
@@ -193,10 +231,10 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 // Variables globales: solo revisa duplicados en global
                 Map<String, VariableInfo> globalVars = functionDirectory.get("program").variables;
                 if (globalVars.containsKey(id)) {
-                    System.err.println("Error: La variable global '" + id + "' ya está declarada.");
+                    throw new RuntimeException("Error: La variable global '" + id + "' ya está declarada.");
                 } else {
                     globalVars.put(id, varInfo);
-                    System.out.println("Variable global '" + id + "' declarada con tipo: " + type);
+                    System.out.println("Variable global '" + id + "' declarada con tipo: " + type + " y dirección: " + getDireccionVariable(id));
                     functionDirectory.get(currentFunction).recursos.numVariables++;
 
                 }
@@ -205,7 +243,8 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 Map<String, VariableInfo> localVars = functionDirectory.get(currentFunction).variables;
                 Map<String, VariableInfo> globalVars = functionDirectory.get("program").variables;
                 if (localVars.containsKey(id)) {
-                    System.err.println("Error: La variable local '" + id + "' ya está declarada en la función '" + currentFunction + "'.");
+                    // System.err.println("Error: La variable local '" + id + "' ya está declarada en la función '" + currentFunction + "'.");
+                    throw new RuntimeException("Error: La variable local '" + id + "' ya está declarada en la función '" + currentFunction + "'.");
                  } //else if (globalVars.containsKey(id)) {
                 //     System.err.println("Error: La variable local '" + id + "' no puede repetir el nombre de una variable global.");
                 // } 
@@ -236,7 +275,7 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 FunctionInfo funcInfo = functionDirectory.get(currentFunction);
                 if (funcInfo != null) {
                     if (funcInfo.parameters.containsKey(paramName)) {
-                        System.err.println("Error: Parámetro '" + paramName + "' ya declarado en función '" + currentFunction + "'");
+                        throw new RuntimeException("Error: Parámetro '" + paramName + "' ya declarado en función '" + currentFunction + "'");
                     } else {
                         funcInfo.parameters.put(paramName, paramInfo);
                         // También puedes agregarlo a variables locales si lo deseas:
@@ -342,8 +381,7 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         String id = ctx.ID().getText();
         VariableInfo varInfo = getVariableInfo(id);
         if (varInfo == null) {
-            System.err.println("Error: Variable '" + id + "' no declarada.");
-            return null;
+            throw new RuntimeException("Error: Variable '" + id + "' no declarada.");
         }
         String tipoVar = varInfo.type;
 
@@ -367,7 +405,7 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         }
 
         int dirVar = getDireccionVariable(id);
-        addCuadruplo("=", dirVar, Integer.parseInt(resultadoExpresion), dirVar);
+        addCuadruplo("=", Integer.parseInt(resultadoExpresion), -1, dirVar);
 
         return null;
     }
@@ -489,7 +527,7 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
                 int dirArg1 = arg1.matches("\\d+") ? Integer.parseInt(arg1) : getDireccionVariable(arg1);
                 int dirArg2 = arg2.matches("\\d+") ? Integer.parseInt(arg2) : getDireccionVariable(arg2);
 
-                int dirTemp = generarDireccionTemporal();
+                int dirTemp = generarDireccionTemporal(tipoResultado);
                 addCuadruplo(operador, dirArg1, dirArg2, dirTemp);
                 pilaOperandos.push(String.valueOf(dirTemp));
                 pilaTipos.push(tipoResultado);
@@ -497,7 +535,47 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
         }
     }
 
+@Override
+public Void visitF_call(ExprParser.F_callContext ctx) {
+    String functionName = ctx.ID().getText();
 
+    // 1. ERA
+    cuadruplos.add(new Cuadruplo("ERA", functionName, "-1", "-1"));
+
+    // 2. PARAMETER para cada argumento
+    if (ctx.list_exp() != null) {
+        List<String> argumentos = obtenerArgumentos(ctx.list_exp());
+        FunctionInfo funcInfo = functionDirectory.get(functionName);
+        int paramIndex = 0;
+        for (String arg : argumentos) {
+            String paramName = (String) funcInfo.parameters.keySet().toArray()[paramIndex];
+            int dirArg = arg.matches("\\d+") ? Integer.parseInt(arg) : getDireccionVariable(arg);
+            cuadruplos.add(new Cuadruplo("PARAMETER", String.valueOf(dirArg), "-1", paramName));
+            paramIndex++;
+        }
+    }
+
+    // 3. GOSUB
+    // Busca el índice de inicio de la función (puedes guardarlo al entrar a la función)
+    int inicioFuncion = functionDirectory.get(functionName).inicioCuadruplo;
+    cuadruplos.add(new Cuadruplo("GOSUB", functionName, "-1", String.valueOf(inicioFuncion)));
+
+    return null;
+}
+
+// Método auxiliar para obtener argumentos de list_exp
+private List<String> obtenerArgumentos(ExprParser.List_expContext ctx) {
+    List<String> args = new ArrayList<>();
+    if (ctx == null) return args;
+    if (ctx.expresion() != null) {
+        visit(ctx.expresion());
+        args.add(pilaOperandos.pop());
+        if (ctx.mas_exp() != null) {
+            args.addAll(obtenerArgumentos(ctx.mas_exp().list_exp()));
+        }
+    }
+    return args;
+}
 
 @Override
 public Void visitIdcte(ExprParser.IdcteContext ctx) {
@@ -509,8 +587,7 @@ public Void visitIdcte(ExprParser.IdcteContext ctx) {
         String id = ctx.ID().getText();
         VariableInfo var = getVariableInfo(id);
         if (var == null) {
-            System.err.println("Error: Variable '" + id + "' no declarada.");
-            return null;
+            throw new RuntimeException("Variable '" + id + "' no declarada.");
         }
         tipo = var.type;
         direccion = getDireccionVariable(id);
@@ -524,7 +601,7 @@ public Void visitIdcte(ExprParser.IdcteContext ctx) {
 
     pilaOperandos.push(String.valueOf(direccion));
     pilaTipos.push(tipo);
-    System.out.println("Push operando: " + valor + " (dir: " + direccion + ") con tipo: " + tipo);
+    //System.out.println("Push operando: " + valor + " (dir: " + direccion + ") con tipo: " + tipo);
     return null;
 }
 
@@ -576,8 +653,6 @@ public Void visitTokenop(ExprParser.TokenopContext ctx) {
     return null;
 }
 
-
-
 private VariableInfo getVariableInfo(String id) {
     if (currentFunction != null && functionDirectory.get(currentFunction).variables.containsKey(id)) {
         return functionDirectory.get(currentFunction).variables.get(id);
@@ -588,17 +663,11 @@ private VariableInfo getVariableInfo(String id) {
     }
 }
 
-
-private String generarTemporal() {
-    return "t" + (contadorTemporales++);
-}
-
-
 public void imprimirMemoriaVirtual() {
-    System.out.println("Mapa de memoria virtual:");
-    for (Map.Entry<String, Integer> entry : memoriaVirtual.entrySet()) {
-        System.out.println(entry.getKey() + " -> " + entry.getValue());
-    }
+    // System.out.println("Mapa de memoria virtual:");
+    // for (Map.Entry<String, Integer> entry : memoriaVirtual.entrySet()) {
+    //     System.out.println(entry.getKey() + " -> " + entry.getValue());
+    // }
 
     System.out.println("Mapa de memoria constante:");
     for (Map.Entry<String, Integer> entry : memoriaConstantes.entrySet()) {

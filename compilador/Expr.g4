@@ -8,7 +8,7 @@ o_vars: vars
     | 
     ;
 
-o_funcs: funcs
+o_funcs: funcs o_funcs
     |
     ;
 

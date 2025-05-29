@@ -9,48 +9,63 @@ public class MaquinaVirtual{
     // private Stack<Map<String, Integer>> memoryStack = new Stack<>(); 
     // private Map<String, Integer> mainMemory = new java.util.HashMap<>();
     private Memory memoriaGlobal = new Memory();
+    private MainMemory mainMemory = new MainMemory();
     private Stack<Memory> memoryStack = new Stack<>();
     private List<Cuadruplo> cuadruplos;
     private Map<String, Integer> memoriaConstantes = new HashMap<>();
     private Map<String, FunctionInfo> functionDirectory = new HashMap<>();
-
+    
     
 
-    public MaquinaVirtual(List<Cuadruplo> cuadruplos, Map<String, FunctionInfo> functionDirectory, Map<String, Integer> memoriaConstantes) {
+    public MaquinaVirtual(Ovejota ovejota) {
         this.pilha = new Stack<>();
-        this.cuadruplos = cuadruplos;
-        this.memoriaConstantes = memoriaConstantes;
-        this.functionDirectory = functionDirectory;
-        inicializarMemoriaGlobal(functionDirectory);
+        this.cuadruplos = ovejota.cuadruplos;
+        this.memoriaConstantes = ovejota.memoriaConstantes;
+        this.functionDirectory = ovejota.functionDirectory;
+        inicializarMemoriaGlobal();
     }
 
-    private void inicializarMemoriaGlobal(Map<String, FunctionInfo> functionDirectory) {
-        // Busca la función global o "program"
+    private void inicializarMemoriaGlobal() {
+        // Inicializa las memorias si es necesario
+        if (mainMemory.memoriaGlobal == null) mainMemory.memoriaGlobal = new Memory();
+        if (mainMemory.memoriaConstante == null) mainMemory.memoriaConstante = new Memory();
+
+        // Variables globales
         FunctionInfo globalInfo = functionDirectory.get("program");
         if (globalInfo != null) {
-            int numVars = globalInfo.recursos.numVariables;
-            int numTemps = globalInfo.recursos.numTemporales;
-
-            // Reserva espacio para variables globales (ejemplo: direcciones 1000 a 1000+numVars)
-            for (int i = 0; i < numVars; i++) {
-                int direccion = 1000 + i;
-                memoriaGlobal.put(direccion, 0); // Inicializa en 0 o valor por defecto
-            }
-
-            // Reserva espacio para temporales globales (ejemplo: direcciones 9000 a 9000+numTemps)
-            for (int i = 0; i < numTemps; i++) {
-                int direccion = 9000 + i;
-                memoriaGlobal.put(direccion, 0); // Inicializa en 0 o valor por defecto
+            for (VariableInfo var : globalInfo.variables.values()) {
+                int direccion = var.direction;
+                String tipo = var.type;
+                if (direccion >= 1000 && direccion < 3000) { // int global
+                    mainMemory.memoriaGlobal.put(direccion, 0);
+                } else if (direccion >= 3000 && direccion < 5000) { // float global
+                    mainMemory.memoriaGlobal.put(direccion, 0.0f);
+                }
+                // Si tienes bool global, agrégalo aquí
             }
         }
 
-        // Inicializa constantes si tienes una tabla de constantes
+        // Constantes
         if (memoriaConstantes != null) {
             for (Map.Entry<String, Integer> entry : memoriaConstantes.entrySet()) {
                 int direccion = entry.getValue();
-                // Puedes convertir el valor de la constante según el tipo si lo necesitas
-                // Aquí se inicializa en memoriaGlobal, pero podrías tener una memoria separada para constantes
-                memoriaGlobal.put(direccion, Integer.parseInt(entry.getKey()));
+                String valorStr = entry.getKey();
+                if (direccion >= 15000 && direccion < 17000) { // int constante
+                    try {
+                        int valor = Integer.parseInt(valorStr);
+                        mainMemory.memoriaConstante.put(direccion, valor);
+                    } catch (NumberFormatException e) {
+                        mainMemory.memoriaConstante.put(direccion, 0);
+                    }
+                } else if (direccion >= 17000 && direccion < 19000) { // float constante
+                    try {
+                        float valor = Float.parseFloat(valorStr);
+                        mainMemory.memoriaConstante.put(direccion, valor);
+                    } catch (NumberFormatException e) {
+                        mainMemory.memoriaConstante.put(direccion, 0.0f);
+                    }
+                }
+                // Si tienes bool constante, agrégalo aquí
             }
         }
     }
@@ -144,7 +159,15 @@ public class MaquinaVirtual{
     public void imprimirPila() {
         System.out.println("Contenido de la pila: " + pilha);
     }
-    
+
+    public void ejecutar() {
+        // Inicializa la pila
+        pilha.clear();
+        System.out.println(memoriaConstantes);
+        // Inicializa la memoria
+        mainMemory.imprimir();
+
+    }
 
 
 }

@@ -4,6 +4,6 @@ z : float;
 main {
     x = (2 + 3)*2/3;
     y = x * 4;
-    z = y + x
+    z = y + x + 4;
 }
 end
