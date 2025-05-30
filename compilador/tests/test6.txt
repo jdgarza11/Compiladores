@@ -2,8 +2,9 @@ program prueba;
 var x, y : int;
 z : float;
 main {
-    x = (2 + 3)*2/3;
+    x = (2 + 3)*2;
     y = x * 4;
     z = y + x + 4;
+    print(y);
 }
 end

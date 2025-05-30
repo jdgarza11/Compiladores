@@ -40,8 +40,6 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
     private int dirMayor = 6;
     private int dirDistinto = 8;
     
-    private int contadorTemporales = 0;
-
     public SemanticVisitor() {
         cuadruplos.add(new Cuadruplo("GOTO", "-1", "-1", "pendiente"));
 
@@ -110,6 +108,13 @@ private int generarDireccionTemporal(String tipo) {
     // Suma temporal al recurso de la función actual
     if (currentFunction != null && functionDirectory.containsKey(currentFunction)) {
         functionDirectory.get(currentFunction).recursos.numTemporales++;
+        if("int".equals(tipo)) {
+            functionDirectory.get(currentFunction).recursos.numTemporalesInt++;
+        } else if("float".equals(tipo)) {
+            functionDirectory.get(currentFunction).recursos.numTemporalesFloat++;
+        } else if("bool".equals(tipo)) {
+            functionDirectory.get(currentFunction).recursos.numTemporalesBool++;
+        }
     }
     return direccion;
 }
@@ -234,8 +239,13 @@ public Void visitFuncs(ExprParser.FuncsContext ctx) {
                     throw new RuntimeException("Error: La variable global '" + id + "' ya está declarada.");
                 } else {
                     globalVars.put(id, varInfo);
-                    System.out.println("Variable global '" + id + "' declarada con tipo: " + type + " y dirección: " + getDireccionVariable(id));
+                    //System.out.println("Variable global '" + id + "' declarada con tipo: " + type + " y dirección: " + getDireccionVariable(id));
                     functionDirectory.get(currentFunction).recursos.numVariables++;
+                    if("int".equals(type)) {
+                        functionDirectory.get(currentFunction).recursos.numVariablesInt++;
+                    } else if("float".equals(type)) {
+                        functionDirectory.get(currentFunction).recursos.numTemporalesFloat++;
+                    }
 
                 }
             } else {
@@ -252,6 +262,12 @@ public Void visitFuncs(ExprParser.FuncsContext ctx) {
                     localVars.put(id, varInfo); 
                     System.out.println("Variable local '" + id + "' declarada con tipo: " + type);
                     functionDirectory.get(currentFunction).recursos.numVariables++;
+                    if("int".equals(type)) {
+                        functionDirectory.get(currentFunction).recursos.numVariablesInt++;
+                    } else if("float".equals(type)) {
+                        functionDirectory.get(currentFunction).recursos.numTemporalesFloat++;
+                    }
+
 
                 }
             }

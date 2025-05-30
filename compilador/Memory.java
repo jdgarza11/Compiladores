@@ -28,6 +28,14 @@ public class Memory {
         return enteros.getOrDefault(direccion, 0);
     }
 
+    public boolean getBoolean(int direccion) {
+        return booleanos.getOrDefault(direccion, false);
+    }
+
+    public float getFloat(int direccion) {
+        return flotantes.getOrDefault(direccion, 0.0f);
+    }
+
     public void imprimir(String etiqueta) {
     for (Map.Entry<Integer, Integer> entry : enteros.entrySet()) {
         System.out.println(etiqueta + " [int] " + entry.getKey() + " = " + entry.getValue());

@@ -3,12 +3,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Stack;
 
+
 public class MaquinaVirtual{
     private Stack<Integer> pilha;
     private int instructionPointer = 0; // <-- Aquí declaras el instruction pointer
     // private Stack<Map<String, Integer>> memoryStack = new Stack<>(); 
     // private Map<String, Integer> mainMemory = new java.util.HashMap<>();
-    private Memory memoriaGlobal = new Memory();
     private MainMemory mainMemory = new MainMemory();
     private Stack<Memory> memoryStack = new Stack<>();
     private List<Cuadruplo> cuadruplos;
@@ -33,15 +33,16 @@ public class MaquinaVirtual{
         // Variables globales
         FunctionInfo globalInfo = functionDirectory.get("program");
         if (globalInfo != null) {
-            for (VariableInfo var : globalInfo.variables.values()) {
-                int direccion = var.direction;
-                String tipo = var.type;
-                if (direccion >= 1000 && direccion < 3000) { // int global
-                    mainMemory.memoriaGlobal.put(direccion, 0);
-                } else if (direccion >= 3000 && direccion < 5000) { // float global
-                    mainMemory.memoriaGlobal.put(direccion, 0.0f);
-                }
-                // Si tienes bool global, agrégalo aquí
+            int numVariablesInt = globalInfo.recursos.numVariablesInt;
+            int numVariablesFloat = globalInfo.recursos.numVariablesFloat;
+
+            for (int i = 0; i < numVariablesInt; i++) {
+                int direccion = 1000 + i;
+                mainMemory.memoriaGlobal.put(direccion, 0);
+            }
+            for (int i = 0; i < numVariablesFloat; i++) {
+                int direccion = 3000 + i;
+                mainMemory.memoriaGlobal.put(direccion, 0.0f);
             }
         }
 
@@ -68,88 +69,152 @@ public class MaquinaVirtual{
                 // Si tienes bool constante, agrégalo aquí
             }
         }
+
+        // Inicializa la memoria activa para la función principal
+        memoryStack.push(inicializarMemoriaActiva(globalInfo, globalInfo.parameters.size(), true));
+        actualizarMemoriaActiva(globalInfo);
     }
 
-        private Memory memoriaActiva() {
-        return memoryStack.peek();
-    }
+    private Memory inicializarMemoriaActiva(FunctionInfo funcInfo, int parametrosSize, boolean isMain) {
+    System.out.println("Parametros =  " + parametrosSize);        
+    Memory memory = new Memory();
+    
+    // Temporales (debes tener los contadores por tipo en Recursos)                                                                              
+    int numTempInt = funcInfo.recursos.numTemporalesInt;
+    int numTempFloat = funcInfo.recursos.numTemporalesFloat;
+    int numTempBool = funcInfo.recursos.numTemporalesBool;
+    // Variables locales
+    int numVariablesInt = funcInfo.recursos.numVariablesInt;
+    int numVariablesFloat = funcInfo.recursos.numVariablesFloat;
 
-    private int leerMemoria(int direccion) {
-        if (esDireccionGlobal(direccion)) {
-            return memoriaGlobal.getInt(direccion);
-        } else {
-            return memoriaActiva().getInt(direccion);
+    if(isMain!= true) {
+        // Variables locales
+        for (int i = 0; i < numVariablesInt; i++) {
+            int direccion = 5000 + i;
+            memory.put(direccion, 0);
+        }
+        for (int i = 0; i < numVariablesFloat; i++) {
+            int direccion = 7000 + i;
+            memory.put(direccion, 0.0f);
         }
     }
 
-    private void escribirMemoria(int direccion, int valor) {
-        if (esDireccionGlobal(direccion)) {
-            memoriaGlobal.put(direccion, valor);
-        } else {
-            memoriaActiva().put(direccion, valor);
-        }
+
+
+    // Int temporales
+    for (int i = 0; i < numTempInt; i++) {
+        int direccion = 9000 + i;
+        memory.put(direccion, 0);
+    }
+    // Float temporales
+    for (int i = 0; i < numTempFloat; i++) {
+        int direccion = 11000 + i;
+        memory.put(direccion, 0.0f);
+    }
+    // Bool temporales
+    for (int i = 0; i < numTempBool; i++) {
+        int direccion = 13000 + i;
+        memory.put(direccion, false);
     }
 
-    private boolean esDireccionGlobal(int direccion) {
-        return direccion >= 1000 && direccion < 5000;
+    return memory;
+    
+}
+
+    private void actualizarMemoriaActiva(FunctionInfo funcInfo) {
+        mainMemory.memoriaActual = memoryStack.isEmpty() ? new Memory() : memoryStack.peek();
     }
 
-    public void ejecutarCuadruplos() {
-        instructionPointer = 0;
-        while (instructionPointer < this.cuadruplos.size()) {
-            Cuadruplo cuadruplo = this.cuadruplos.get(instructionPointer);
-            switch (cuadruplo.operador) {
-                case "+":
-                    int b = pilha.pop();
-                    int a = pilha.pop();
-                    pilha.push(a + b);
-                    break;
-                case "-":
-                    b = pilha.pop();
-                    a = pilha.pop();
-                    pilha.push(a - b);
-                    break;
-                case "*":
-                    b = pilha.pop();
-                    a = pilha.pop();
-                    pilha.push(a * b);
-                    break;
-                case "/":
-                    b = pilha.pop();
-                    a = pilha.pop();
-                    if (b == 0) {
-                        throw new ArithmeticException("Division by zero");
-                    }
-                    pilha.push(a / b);
-                    break;
 
-                case "=": // Asignación
-                    int valor = pilha.pop();
-                    // Aquí podrías almacenar el valor en una variable si fuera necesario
-                    // Por ejemplo, si tienes un mapa de variables, podrías hacer algo como:
-                    //this.variables.put(cuadruplo.resultado, valor);
-                    break;
+private void ejecutarCuadruplos() {
+    instructionPointer = 0;
+    while (instructionPointer < cuadruplos.size()) {
+        Cuadruplo q = cuadruplos.get(instructionPointer);
+        String op = q.operador;
+        int op1 = q.operando1.equals("-1") ? -1 : Integer.parseInt(q.operando1);
+        int op2 = q.operando2.equals("-1") ? -1 : Integer.parseInt(q.operando2);
+        int res = q.resultado.equals("-1") ? -1 : Integer.parseInt(q.resultado);
 
-                case "GOTO": // Salto incondicional
-                    int target = Integer.parseInt(cuadruplo.resultado);
-                    if (target < 0 || target >= this.cuadruplos.size()) {
-                        throw new IndexOutOfBoundsException("GOTO fuera de rango: " + target);
-                    }
-                    instructionPointer = target; // Salta al cuádruplo indicado
-                    continue; // No avanza al siguiente cuádruplo
-                
-                // case "PUSH":
-                //     pilha.push(cuadruplo.operando1);
-                //     break;
-                // case "POP":
-                //     pilha.pop();
-                //     break;
-                default:
-                    throw new UnsupportedOperationException("Operador no soportado: " + cuadruplo.operador);
+        switch (op) {
+            case "GOTO":
+                instructionPointer = res;
+                continue;
+
+            case "+":
+            case "-":
+            case "*":
+            case "/": {
+                Number val1 = leerValor(op1);
+                Number val2 = leerValor(op2);
+                Number resultado = 0;
+                // Si alguno es float, resultado es float
+                boolean esFloat = (val1 instanceof Float) || (val2 instanceof Float);
+                switch (op) {
+                    case "+": resultado = esFloat ? val1.floatValue() + val2.floatValue() : val1.intValue() + val2.intValue(); break;
+                    case "-": resultado = esFloat ? val1.floatValue() - val2.floatValue() : val1.intValue() - val2.intValue(); break;
+                    case "*": resultado = esFloat ? val1.floatValue() * val2.floatValue() : val1.intValue() * val2.intValue(); break;
+                    case "/": resultado = esFloat ? val1.floatValue() / val2.floatValue() : val1.intValue() / val2.intValue(); break;
+                }
+                escribirValor(res, resultado);
+                break;
             }
-            instructionPointer++; // Avanza al siguiente cuádruplo
+
+            case "=": {
+                Number valor = leerValor(op1);
+                escribirValor(res, valor);
+                break;
+            }
+
+            case "PRINT": {
+                Number valor = leerValor(res);
+                System.out.println(valor);
+                break;
+            }
+
+            default:
+                System.err.println("Operador no soportado: " + op);
         }
+        instructionPointer++;
     }
+}
+
+// Lee el valor de la dirección desde la memoria correspondiente
+private Number leerValor(int direccion) {
+    if (direccion == -1) return 0;
+    if (direccion >= 1000 && direccion < 3000) { // int global
+        return mainMemory.memoriaGlobal.getInt(direccion);
+    } else if (direccion >= 3000 && direccion < 5000) { // float global
+        return mainMemory.memoriaGlobal.getFloat(direccion);
+    } else if (direccion >= 9000 && direccion < 11000) { // int temporal
+        return mainMemory.memoriaActual.getInt(direccion);
+    } else if (direccion >= 11000 && direccion < 13000) { // float temporal
+        return mainMemory.memoriaActual.getFloat(direccion);
+    } else if (direccion >= 15000 && direccion < 17000) { // int constante
+        return mainMemory.memoriaConstante.getInt(direccion);
+    } else if (direccion >= 17000 && direccion < 19000) { // float constante
+        return mainMemory.memoriaConstante.getFloat(direccion);
+    } else {
+        System.err.println("Dirección no reconocida para leer: " + direccion);
+        return 0;
+    }
+}
+
+// Escribe el valor en la memoria correspondiente
+private void escribirValor(int direccion, Number valor) {
+    if (direccion == -1) return;
+    if (direccion >= 1000 && direccion < 3000) { // int global
+        mainMemory.memoriaGlobal.put(direccion, valor.intValue());
+    } else if (direccion >= 3000 && direccion < 5000) { // float global
+        mainMemory.memoriaGlobal.put(direccion, valor.floatValue());
+    } else if (direccion >= 9000 && direccion < 11000) { // int temporal
+        mainMemory.memoriaActual.put(direccion, valor.intValue());
+    } else if (direccion >= 11000 && direccion < 13000) { // float temporal
+        mainMemory.memoriaActual.put(direccion, valor.floatValue());
+    } else {
+        System.err.println("Dirección no reconocida para escribir: " + direccion);
+    }
+}
+
     public int obtenerResultado() {
         if (pilha.isEmpty()) {
             throw new IllegalStateException("La pila está vacía, no hay resultado.");
@@ -166,6 +231,10 @@ public class MaquinaVirtual{
         System.out.println(memoriaConstantes);
         // Inicializa la memoria
         mainMemory.imprimir();
+        // Ejecuta los cuádruplos
+        System.out.println("------------------------Terminal de BABYDUCK----------------------------");
+        ejecutarCuadruplos();
+
 
     }
 

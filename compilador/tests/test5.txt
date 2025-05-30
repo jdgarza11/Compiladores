@@ -1,10 +1,10 @@
 program math;
 var x : int;
 void square(n : int) [ var result : int; { result = n * n; print(result); } ]; 
-void func(z : int)[var local : int; {z = 2 * 3; print(z);}]; 
+//void func(z : int)[var local : int; {z = 2 * 3; print(z);}]; 
 main {
-  x = 1;
+  x = 2;
   square(x);
-  func(x);
+  //func(x);
 }
 end
