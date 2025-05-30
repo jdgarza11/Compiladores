@@ -1,7 +1,7 @@
 public class MainMemory {
     public Memory memoriaConstante;
     public Memory memoriaGlobal;
-    public Memory memoriaActual;
+    //public Memory memoriaActual;
 
     public void imprimir() {
         System.out.println("=== MainMemory ===");
@@ -14,10 +14,10 @@ public class MainMemory {
             System.out.println("Memoria Constante:");
             memoriaConstante.imprimir("Constante");
         }
-        if (memoriaActual != null) {
-            System.out.println("Memoria Activa:");
-            memoriaActual.imprimir("Variable");
-        }
+        // if (memoriaActual != null) {
+        //     System.out.println("Memoria Activa:");
+        //     memoriaActual.imprimir("Variable");
+        // }
     }
     
 }

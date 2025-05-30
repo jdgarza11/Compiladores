@@ -48,14 +48,13 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
 private int getDireccionVariable(String id) {
     VariableInfo varInfo = getVariableInfo(id);
     if (varInfo == null) {
-        System.err.println("Error: Variable '" + id + "' no declarada.");
-        return -1;
+        throw new RuntimeException("Error: Variable '" + id + "' no declarada.");
     }
     if (varInfo.direction == null) {
         int dir;
         String tipo = varInfo.type;
         boolean esGlobal = functionDirectory.get("program").variables.containsKey(id);
-        if (esGlobal) {
+        if (currentFunction == "program") {
             if ("int".equals(tipo)) {
                 dir = dirVarGlobalInt++;
             } else if ("float".equals(tipo)) {
@@ -239,7 +238,7 @@ public Void visitFuncs(ExprParser.FuncsContext ctx) {
                     throw new RuntimeException("Error: La variable global '" + id + "' ya está declarada.");
                 } else {
                     globalVars.put(id, varInfo);
-                    //System.out.println("Variable global '" + id + "' declarada con tipo: " + type + " y dirección: " + getDireccionVariable(id));
+                    System.out.println("Variable global '" + id + "' declarada con tipo: " + type + " y dirección: " + getDireccionVariable(id));
                     functionDirectory.get(currentFunction).recursos.numVariables++;
                     if("int".equals(type)) {
                         functionDirectory.get(currentFunction).recursos.numVariablesInt++;
@@ -260,7 +259,7 @@ public Void visitFuncs(ExprParser.FuncsContext ctx) {
                 // } 
                 else {
                     localVars.put(id, varInfo); 
-                    System.out.println("Variable local '" + id + "' declarada con tipo: " + type);
+                    System.out.println("Variable local '" + id + "' declarada con tipo: " + type + " y dirección: " + getDireccionVariable(id));
                     functionDirectory.get(currentFunction).recursos.numVariables++;
                     if("int".equals(type)) {
                         functionDirectory.get(currentFunction).recursos.numVariablesInt++;
@@ -286,6 +285,15 @@ public Void visitFuncs(ExprParser.FuncsContext ctx) {
             paramInfo.name = paramName;
             paramInfo.type = paramType;
 
+            // Asigna dirección local al parámetro ANTES de agregar variables locales
+            if ("int".equals(paramType)) {
+                paramInfo.direction = dirVarLocalInt++;
+            } else if ("float".equals(paramType)) {
+                paramInfo.direction = dirVarLocalFloat++;
+            } else {
+                throw new RuntimeException("Tipo de parámetro no soportado: " + paramType);
+            }
+
             // Guarda el parámetro en el directorio de funciones
             if (currentFunction != null) {
                 FunctionInfo funcInfo = functionDirectory.get(currentFunction);
@@ -294,6 +302,7 @@ public Void visitFuncs(ExprParser.FuncsContext ctx) {
                         throw new RuntimeException("Error: Parámetro '" + paramName + "' ya declarado en función '" + currentFunction + "'");
                     } else {
                         funcInfo.parameters.put(paramName, paramInfo);
+                        funcInfo.numParameters++;
                         // También puedes agregarlo a variables locales si lo deseas:
                         funcInfo.variables.put(paramName, paramInfo);
                     }
@@ -564,15 +573,13 @@ public Void visitF_call(ExprParser.F_callContext ctx) {
         FunctionInfo funcInfo = functionDirectory.get(functionName);
         int paramIndex = 0;
         for (String arg : argumentos) {
-            String paramName = (String) funcInfo.parameters.keySet().toArray()[paramIndex];
             int dirArg = arg.matches("\\d+") ? Integer.parseInt(arg) : getDireccionVariable(arg);
-            cuadruplos.add(new Cuadruplo("PARAMETER", String.valueOf(dirArg), "-1", paramName));
+            cuadruplos.add(new Cuadruplo("PARAMETER", String.valueOf(dirArg), "-1", String.valueOf(paramIndex)));
             paramIndex++;
         }
     }
 
     // 3. GOSUB
-    // Busca el índice de inicio de la función (puedes guardarlo al entrar a la función)
     int inicioFuncion = functionDirectory.get(functionName).inicioCuadruplo;
     cuadruplos.add(new Cuadruplo("GOSUB", functionName, "-1", String.valueOf(inicioFuncion)));
 
@@ -680,11 +687,6 @@ private VariableInfo getVariableInfo(String id) {
 }
 
 public void imprimirMemoriaVirtual() {
-    // System.out.println("Mapa de memoria virtual:");
-    // for (Map.Entry<String, Integer> entry : memoriaVirtual.entrySet()) {
-    //     System.out.println(entry.getKey() + " -> " + entry.getValue());
-    // }
-
     System.out.println("Mapa de memoria constante:");
     for (Map.Entry<String, Integer> entry : memoriaConstantes.entrySet()) {
         System.out.println(entry.getKey() + " -> " + entry.getValue());

@@ -3,7 +3,7 @@ import java.util.Map;
 public class Memory {
 
     Map<Integer, Integer> enteros;
-    private Map<Integer, Boolean> booleanos;
+    Map<Integer, Boolean> booleanos;
     Map<Integer, Float> flotantes;
 
     public Memory() {
