@@ -574,7 +574,20 @@ public Void visitF_call(ExprParser.F_callContext ctx) {
         int paramIndex = 0;
         for (String arg : argumentos) {
             int dirArg = arg.matches("\\d+") ? Integer.parseInt(arg) : getDireccionVariable(arg);
-            cuadruplos.add(new Cuadruplo("PARAMETER", String.valueOf(dirArg), "-1", String.valueOf(paramIndex)));
+
+            // Determina el tipo del argumento por su dirección
+            int dirDestino;
+            if ((dirArg >= 1000 && dirArg < 3000) || (dirArg >= 5000 && dirArg < 7000) || (dirArg >= 9000 && dirArg < 11000) || (dirArg >= 15000 && dirArg < 17000)) {
+                // Es int (global, local, temporal, constante)
+                dirDestino = 5000 + paramIndex;
+            } else if ((dirArg >= 3000 && dirArg < 5000) || (dirArg >= 7000 && dirArg < 9000) || (dirArg >= 11000 && dirArg < 13000) || (dirArg >= 17000 && dirArg < 19000)) {
+                // Es float (global, local, temporal, constante)
+                dirDestino = 7000 + paramIndex;
+            } else {
+                throw new RuntimeException("Tipo de parámetro no soportado para dirección: " + dirArg);
+            }
+
+            cuadruplos.add(new Cuadruplo("PARAMETER", String.valueOf(dirArg), "-1", String.valueOf(dirDestino)));
             paramIndex++;
         }
     }

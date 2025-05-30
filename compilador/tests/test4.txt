@@ -1,6 +1,7 @@
 program conditional;
 var score : int;
 main {
+  score = 70;
   if (score > 60) {
     print("Pass");
   } else {

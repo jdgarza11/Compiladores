@@ -1,0 +1,25 @@
+program testRetador;
+var dummy : int;
+
+void sumTo(n : int) [
+  var s, i : int;
+  {// Inicializa acumulador y contador
+  s = 0;
+  i = 1;
+  // Bucle: mientras i ≤ n
+  while (i < n) do {
+    s = s + i;
+    i = i + 1;
+  };
+  // Imprime el resultado de la suma
+  print(s);}
+];
+
+main {
+  // Calcula suma de 1 a 5  → debería imprimir 15
+  sumTo(6);
+  // Calcula suma de 1 a 10 → debería imprimir 55
+  sumTo(11);
+  print("¡Listo!");
+}
+end
