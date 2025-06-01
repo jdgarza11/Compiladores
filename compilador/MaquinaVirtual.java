@@ -5,8 +5,8 @@ import java.util.Stack;
 
 public class MaquinaVirtual {
     private int instructionPointer = 0;
-    private Map<Integer, Object> memoriaPrincipal = new HashMap<>();
-    private Stack<Map<Integer, Object>> memoryStack = new Stack<>();
+    private Map<Integer, Object> memoriaGlobal = new HashMap<>();
+    private Stack<Map<Integer, Object>> stackFrames = new Stack<>();
     private List<Cuadruplo> cuadruplos;
     private Map<String, Integer> memoriaConstantes;
     private Map<String, FunctionInfo> functionDirectory;
@@ -19,33 +19,66 @@ public class MaquinaVirtual {
     }
 
     private void inicializarMemoriaGlobal() {
-        // Reservar globals
+        // Reservar variables globales
         FunctionInfo globalInfo = functionDirectory.get("program");
         if (globalInfo != null) {
+            // Variables globales int (1000-2999)
             for (int i = 0; i < globalInfo.recursos.numVariablesInt; i++)
-                memoriaPrincipal.put(1000 + i, 0);
+                memoriaGlobal.put(1000 + i, 0);
+            // Variables globales float (3000-4999)
             for (int i = 0; i < globalInfo.recursos.numVariablesFloat; i++)
-                memoriaPrincipal.put(3000 + i, 0.0f);
+                memoriaGlobal.put(3000 + i, 0.0f);
         }
-        // Cargar constantes
+        
+        // Cargar constantes en memoria global
         for (Map.Entry<String, Integer> entry : memoriaConstantes.entrySet()) {
-            int dir = entry.getValue(); String valStr = entry.getKey(); Object val;
+            int dir = entry.getValue(); 
+            String valStr = entry.getKey(); 
+            Object val;
+            
             if (dir >= 15000 && dir < 17000) {
-                try { val = Integer.parseInt(valStr); } catch (Exception e) { val = 0; }
+                try { 
+                    val = Integer.parseInt(valStr); 
+                } catch (Exception e) { 
+                    val = 0; 
+                }
             } else if (dir >= 17000 && dir < 19000) {
-                try { val = Float.parseFloat(valStr); } catch (Exception e) { val = 0.0f; }
+                try { 
+                    val = Float.parseFloat(valStr); 
+                } catch (Exception e) { 
+                    val = 0.0f; 
+                }
             } else {
-                // string literal constants handled inline in PRINT
+                // string literals se manejan en PRINT
                 continue;
             }
-            memoriaPrincipal.put(dir, val);
+            memoriaGlobal.put(dir, val);
         }
-        // Contexto inicial
-        memoryStack.push(new HashMap<>(memoriaPrincipal));
     }
 
     public void ejecutar() {
         Stack<Integer> pilaSaltos = new Stack<>();
+        
+        // Crear frame inicial para el programa principal (main)
+        FunctionInfo mainInfo = functionDirectory.get("program");
+        Map<Integer, Object> mainFrame = new HashMap<>();
+        
+        if (mainInfo != null) {
+            // Inicializar temporales del main
+            for (int i = 0; i < mainInfo.recursos.numTemporalesInt; i++) {
+                mainFrame.put(9000 + i, 0);
+            }
+            for (int i = 0; i < mainInfo.recursos.numTemporalesFloat; i++) {
+                mainFrame.put(11000 + i, 0.0f);
+            }
+            for (int i = 0; i < mainInfo.recursos.numTemporalesBool; i++) {
+                mainFrame.put(13000 + i, 0);
+            }
+        }
+        
+        stackFrames.push(mainFrame);
+        //System.out.println("DEBUG: Iniciando main - Stack depth: " + stackFrames.size());
+        
         while (instructionPointer < cuadruplos.size()) {
             Cuadruplo q = cuadruplos.get(instructionPointer);
             String op = q.operador;
@@ -58,18 +91,16 @@ public class MaquinaVirtual {
                     instructionPointer = Integer.parseInt(resStr);
                     continue;
 
-                // Aritméticos: solo division promueve a float, suma/resta/multiplicación siempre entero
                 case "+": case "-": case "*": case "/": {
                     int a1 = Integer.parseInt(op1Str);
                     int a2 = Integer.parseInt(op2Str);
                     Number v1 = leer(a1);
                     Number v2 = leer(a2);
                     Number out;
+                    
                     if ("/".equals(op)) {
-                        // division produce float si hay float o no
                         out = v1.floatValue() / v2.floatValue();
                     } else {
-                        // suma, resta, multiplicación siempre entero
                         switch (op) {
                             case "+": out = v1.intValue() + v2.intValue(); break;
                             case "-": out = v1.intValue() - v2.intValue(); break;
@@ -93,6 +124,7 @@ public class MaquinaVirtual {
                     int dest = Integer.parseInt(resStr);
                     Number v1 = leer(a1), v2 = leer(a2);
                     boolean cond;
+                    
                     switch(op) {
                         case ">": cond = v1.doubleValue() > v2.doubleValue(); break;
                         case "<": cond = v1.doubleValue() < v2.doubleValue(); break;
@@ -126,31 +158,84 @@ public class MaquinaVirtual {
                 case "ERA": {
                     String funcName = op1Str;
                     FunctionInfo fi = functionDirectory.get(funcName);
+                    
+                    // Crear nuevo frame e inicializar variables locales y temporales
+                    Map<Integer, Object> newFrame = new HashMap<>();
+                    
                     if (fi != null) {
-                        memoryStack.push(new HashMap<>(memoryStack.firstElement()));
+                        // Inicializar variables locales int (incluyendo parámetros)
+                        for (int i = 0; i < fi.recursos.numVariablesInt; i++) {
+                            newFrame.put(5000 + i, 0);
+                        }
+                        
+                        // Inicializar variables locales float
+                        for (int i = 0; i < fi.recursos.numVariablesFloat; i++) {
+                            newFrame.put(7000 + i, 0.0f);
+                        }
+                        
+                        // Inicializar temporales int
+                        for (int i = 0; i < fi.recursos.numTemporalesInt; i++) {
+                            newFrame.put(9000 + i, 0);
+                        }
+                        
+                        // Inicializar temporales float
+                        for (int i = 0; i < fi.recursos.numTemporalesFloat; i++) {
+                            newFrame.put(11000 + i, 0.0f);
+                        }
+                        
+                        // Inicializar temporales bool
+                        for (int i = 0; i < fi.recursos.numTemporalesBool; i++) {
+                            newFrame.put(13000 + i, 0);
+                        }
                     }
+                    
+                    stackFrames.push(newFrame);
+                    // System.out.println("DEBUG: ERA " + funcName + " - Stack depth: " + stackFrames.size() + 
+                    //                  " - Variables: " + (fi != null ? fi.recursos.numVariablesInt : 0) + 
+                    //                  " int, " + (fi != null ? fi.recursos.numVariablesFloat : 0) + " float");
                     break;
                 }
 
+                
                 case "PARAMETER": {
                     int src = Integer.parseInt(op1Str);
                     int dest = Integer.parseInt(resStr);
-                    memoryStack.peek().put(dest, leer(src));
+                    
+                    // El valor debe leerse del contexto actual (antes de ERA)
+                    // pero escribirse en el frame que se acaba de crear (después de ERA)
+                    Object value = leer(src);  // Esto ahora busca correctamente en el stack
+                    
+                    // Escribir en el frame actual (el de la función que se va a llamar)
+                    if (!stackFrames.isEmpty()) {
+                        stackFrames.peek().put(dest, value);
+                        //System.out.println("DEBUG: PARAMETER " + src + " -> " + dest + " = " + value);
+                    } else {
+                        System.err.println("Error: No hay frame activo para parámetro");
+                    }
                     break;
                 }
 
                 case "GOSUB": {
                     pilaSaltos.push(instructionPointer + 1);
                     instructionPointer = Integer.parseInt(resStr);
+                    //System.out.println("DEBUG: GOSUB to " + resStr + " - Return to: " + (instructionPointer + 1));
                     continue;
                 }
 
                 case "ENDFunc": {
-                    if (!memoryStack.isEmpty()) memoryStack.pop();
+                    // Limpiar frame de función actual
+                    if (!stackFrames.isEmpty()) {
+                        Map<Integer, Object> removedFrame = stackFrames.pop();
+                        //System.out.println("DEBUG: ENDFunc - Removed frame, Stack depth: " + stackFrames.size());
+                    }
+                    
+                    // Regresar al punto de llamada
                     if (!pilaSaltos.isEmpty()) {
                         instructionPointer = pilaSaltos.pop();
+                        //System.out.println("DEBUG: ENDFunc - Return to: " + instructionPointer);
                         continue;
                     } else {
+                        // Fin del programa principal
                         instructionPointer = cuadruplos.size();
                     }
                     break;
@@ -163,14 +248,68 @@ public class MaquinaVirtual {
         }
     }
 
+    // Versión corregida de la función leer()
     private Number leer(int dir) {
-        Object o = memoryStack.peek().getOrDefault(dir, memoriaPrincipal.get(dir));
-        if (o instanceof Integer) return (Integer) o;
-        if (o instanceof Float) return (Float) o;
+        // 1. Buscar en todos los frames del stack (desde el más reciente)
+        for (int i = stackFrames.size() - 1; i >= 0; i--) {
+            Map<Integer, Object> frame = stackFrames.get(i);
+            if (frame.containsKey(dir)) {
+                Object value = frame.get(dir);
+                //System.out.println("DEBUG: Leyendo " + dir + " del frame " + i + " = " + value);
+                return (value instanceof Number) ? (Number) value : 0;
+            }
+        }
+        
+        // 2. Buscar en memoria global (variables globales y constantes)
+        if (memoriaGlobal.containsKey(dir)) {
+            Object value = memoriaGlobal.get(dir);
+            //System.out.println("DEBUG: Leyendo " + dir + " de memoria global = " + value);
+            return (value instanceof Number) ? (Number) value : 0;
+        }
+        
+        // 3. Si es dirección local/temporal, inicializar con 0 en frame actual
+        if (esMemoriaLocal(dir)) {
+            if (!stackFrames.isEmpty()) {
+                stackFrames.peek().put(dir, 0);
+                //System.out.println("DEBUG: Inicializando " + dir + " = 0 en frame actual");
+                return 0;
+            }
+        }
+        
+        System.err.println("Advertencia: Leyendo dirección no encontrada: " + dir);
         return 0;
     }
 
-    private void escribir(int dir, Number val) {
-        memoryStack.peek().put(dir, val);
+    private void escribir(int dir, Object val) {
+        //System.out.println("DEBUG: Escribiendo " + dir + " = " + val);
+        
+        if (esMemoriaLocal(dir)) {
+            // Variables locales, parámetros, temporales van al frame actual
+            if (!stackFrames.isEmpty()) {
+                stackFrames.peek().put(dir, val);
+            } else {
+                System.err.println("Error: No hay frame activo para escribir en: " + dir);
+            }
+        } else if (esMemoriaGlobal(dir)) {
+            // Variables globales van a memoria global
+            memoriaGlobal.put(dir, val);
+        } else {
+            System.err.println("Error: Dirección de memoria inválida: " + dir);
+        }
+    }
+    
+    private boolean esMemoriaLocal(int dir) {
+        return (dir >= 5000 && dir < 7000) ||  // variables locales int
+               (dir >= 7000 && dir < 9000) ||  // variables locales float
+               (dir >= 9000 && dir < 11000) || // temporales int
+               (dir >= 11000 && dir < 13000) || // temporales float
+               (dir >= 13000 && dir < 15000);   // temporales bool
+    }
+    
+    private boolean esMemoriaGlobal(int dir) {
+        return (dir >= 1000 && dir < 3000) ||  // variables globales int
+               (dir >= 3000 && dir < 5000) ||  // variables globales float
+               (dir >= 15000 && dir < 17000) || // constantes int
+               (dir >= 17000 && dir < 19000);   // constantes float
     }
 }

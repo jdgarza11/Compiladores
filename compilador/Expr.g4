@@ -31,7 +31,7 @@ input: ID ':' type listinput
     | 
     ;
 
-listinput: input
+listinput: ',' input
     | 
     ;
 
@@ -54,9 +54,9 @@ statement: assign
 
 assign: ID '=' expresion ';';
 
-condition: 'if' '(' expresion ')' body 'else' elses ';';
+condition: 'if' '(' expresion ')' body elses ';';
 
-elses: body
+elses: 'else' body
     | 
     ;   
 

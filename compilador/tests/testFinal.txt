@@ -1,25 +1,18 @@
-program testRetador;
-var dummy : int;
+program factorialTest;
 
-void sumTo(n : int) [
-  var s, i : int;
-  {// Inicializa acumulador y contador
-  s = 0;
-  i = 1;
-  // Bucle: mientras i ≤ n
-  while (i < n) do {
-    s = s + i;
-    i = i + 1;
-  };
-  // Imprime el resultado de la suma
-  print(s);}
+void factorial(n : int) [
+  {
+    if (n < 2) {
+      print(1);
+    } else {
+      print(n);
+      factorial(n - 1);
+    };
+  }
 ];
 
 main {
-  // Calcula suma de 1 a 5  → debería imprimir 15
-  sumTo(6);
-  // Calcula suma de 1 a 10 → debería imprimir 55
-  sumTo(11);
-  print("¡Listo!");
+  factorial(4);
+  print("Fin del cálculo");
 }
 end
