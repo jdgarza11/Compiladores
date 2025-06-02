@@ -147,10 +147,10 @@ public class MaquinaVirtual {
 
                 case "PRINT": {
                     if (resStr.startsWith("\"") && resStr.endsWith("\"")) {
-                        System.out.println(resStr.substring(1, resStr.length()-1));
+                        System.out.println("|  "+resStr.substring(1, resStr.length()-1));
                     } else {
                         int addr = Integer.parseInt(resStr);
-                        System.out.println(leer(addr));
+                        System.out.println("|  "+leer(addr));
                     }
                     break;
                 }

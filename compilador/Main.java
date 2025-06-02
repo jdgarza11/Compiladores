@@ -34,7 +34,7 @@ public class Main {
         // Imprimir los cuádruplos generados
         visitor.imprimirCuadruplos();
         visitor.imprimirMemoriaVirtual();
-        System.out.println("------------------------Terminal Baby Duck---------------------------");
+        System.out.println("\n\n\n--------------------------Terminal Baby Duck---------------------------");
         // Crear la máquina virtual con los cuádruplos generados
         Ovejota ovejota = visitor.getOvejota();
         MaquinaVirtual maquinaVirtual = new MaquinaVirtual(ovejota);

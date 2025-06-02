@@ -30,15 +30,6 @@ public class SemanticVisitor extends ExprBaseVisitor<Void> {
     private int dirTemporalBool = 13000;
     private int dirConstInt = 15000;
     private int dirConstFloat = 17000;
-
-    private int dirAsignar = 0;
-    private int dirSuma = 1;
-    private int dirResta = 2;    
-    private int dirMultiplicacion = 3;
-    private int dirDivision = 4; 
-    private int dirMenor = 5; 
-    private int dirMayor = 6;
-    private int dirDistinto = 8;
     
     public SemanticVisitor() {
         cuadruplos.add(new Cuadruplo("GOTO", "-1", "-1", "pendiente"));
@@ -53,7 +44,6 @@ private int getDireccionVariable(String id) {
     if (varInfo.direction == null) {
         int dir;
         String tipo = varInfo.type;
-        boolean esGlobal = functionDirectory.get("program").variables.containsKey(id);
         if (currentFunction == "program") {
             if ("int".equals(tipo)) {
                 dir = dirVarGlobalInt++;
@@ -119,18 +109,18 @@ private int generarDireccionTemporal(String tipo) {
 }
     
 
-    public Map<String, FunctionInfo> getFunctionDirectory() {
-        return functionDirectory;
-    }
+public Map<String, FunctionInfo> getFunctionDirectory() {
+    return functionDirectory;
+}
 
-    public void imprimirCuadruplos() {
-        System.out.println("Cuádruplos generados:");
-        for (Cuadruplo c : cuadruplos) {
-            System.out.println(c);
-        }
+public void imprimirCuadruplos() {
+    System.out.println("Cuádruplos generados:");
+    for (Cuadruplo c : cuadruplos) {
+        System.out.println(c);
     }
+}
 
-    public String imprimirDirectorio() {
+public String imprimirDirectorio() {
     StringBuilder sb = new StringBuilder();
     for (Map.Entry<String, FunctionInfo> entry : functionDirectory.entrySet()) {
         sb.append("Función: ").append(entry.getKey()).append("\n");
@@ -140,47 +130,46 @@ private int generarDireccionTemporal(String tipo) {
         sb.append("  Variables:\n");
         for (Map.Entry<String, VariableInfo> varEntry : funcInfo.variables.entrySet()) {
             sb.append("    ").append(varEntry.getValue().Imprimir())
-              //.append(" : ").append(varEntry.getValue().type)
-              .append("\n");
+                //.append(" : ").append(varEntry.getValue().type)
+                .append("\n");
         }
         sb.append("  Parámetros:\n");
         for (Map.Entry<String, VariableInfo> paramEntry : funcInfo.parameters.entrySet()) {
             sb.append("    ").append(paramEntry.getValue().Imprimir())
-              //.append(" : ").append(paramEntry.getValue().type)
-              .append("\n");
+                //.append(" : ").append(paramEntry.getValue().type)
+                .append("\n");
         }
     }
     return sb.toString();
 }
 
-    @Override
-    public Void visitAll(ExprParser.AllContext ctx) {
-        System.out.println("¡visitAll!");
-        // Aquí puedes iniciar la verificación semántica global o recorrido del programa
-        return visitChildren(ctx);
-    }
+@Override
+public Void visitAll(ExprParser.AllContext ctx) {
+    System.out.println("Empieza visitor!");
+    return visitChildren(ctx);
+}
 
-    @Override
-    public Void visitProgram(ExprParser.ProgramContext ctx) {
-        currentFunction = "program";
-        functionDirectory.put(currentFunction, new FunctionInfo());
+@Override
+public Void visitProgram(ExprParser.ProgramContext ctx) {
+    currentFunction = "program";
+    functionDirectory.put(currentFunction, new FunctionInfo());
 
-        // Procesa variables y funciones primero
-        if (ctx.o_vars() != null) visit(ctx.o_vars());
-        if (ctx.o_funcs() != null) visit(ctx.o_funcs());
+    // Procesa variables y funciones primero
+    if (ctx.o_vars() != null) visit(ctx.o_vars());
+    if (ctx.o_funcs() != null) visit(ctx.o_funcs());
 
-        // Justo antes de entrar al main, actualiza el GOTO
-        int indiceMain = cuadruplos.size();
-        cuadruplos.get(0).resultado = String.valueOf(indiceMain);
-        //Reinicia el contador de temporales para el main
-        dirTemporalInt = 9000;
-        dirTemporalFloat = 11000;
-        dirTemporalBool = 13000;
-        // Ahora procesa el body de main
-        visit(ctx.body());
+    // Justo antes de entrar al main, actualiza el GOTO
+    int indiceMain = cuadruplos.size();
+    cuadruplos.get(0).resultado = String.valueOf(indiceMain);
+    //Reinicia el contador de temporales para el main
+    dirTemporalInt = 9000;
+    dirTemporalFloat = 11000;
+    dirTemporalBool = 13000;
+    // Ahora procesa el body de main
+    visit(ctx.body());
 
-        return null;
-    }
+    return null;
+}
 
     
 
